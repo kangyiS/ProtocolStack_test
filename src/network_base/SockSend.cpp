@@ -9,7 +9,6 @@ using namespace std;
 CSockSend::CSockSend()
 {
     m_sockfd = -1;
-    pthread_mutex_init(&mutex,NULL);
 }
 
 CSockSend::~CSockSend()
@@ -28,11 +27,10 @@ CSockSend* CSockSend::instance()
 
 int16_t CSockSend::createSocket()
 {
-    pthread_mutex_lock(&mutex); 
+    CGuard guard(mutex_createSocket);
     if(m_sockfd < 0)
     {
         m_sockfd = socket(PF_PACKET, SOCK_RAW, htons(ETH_P_ALL));
     }
-    pthread_mutex_unlock(&mutex); 
     return m_sockfd;
 }

@@ -4,6 +4,7 @@
 #include <iostream> // std
 #include <map> // map
 #include <pthread.h>
+#include "Guard.h"
 
 class CRecvBuf
 {
@@ -18,7 +19,8 @@ private:
     uint32_t m_bufCount;// 一共有多少个缓存包
     uint32_t m_memSize;//　一个CRecvBuf对象最多允许占多少内存：字节
     uint16_t m_port;// 该对象对应的端口
-    pthread_mutex_t mutex;
+    pthread_mutex_t mutex_pushBack;
+    pthread_mutex_t mutex_popFront;
 };
 
 class CSockRecv
@@ -54,7 +56,13 @@ private:
     std::map<uint16_t, CRecvBuf*> m_portMap;
     std::map<uint16_t, uint16_t> m_idPortMap;
     std::map<uint16_t, CRecvBuf*> m_protocolMap;
-    pthread_mutex_t mutex;
+    pthread_mutex_t mutex_createRecv;
+    pthread_mutex_t mutex_pushBufferByPort;
+    pthread_mutex_t mutex_pushBufferByProto;
+    pthread_mutex_t mutex_closePort;
+    pthread_mutex_t mutex_addPort;
+    pthread_mutex_t mutex_addProtocol;
+    pthread_mutex_t mutex_popBuffer;
     std::string m_host_ip;
     std::string m_host_mac;
 };

@@ -22,7 +22,6 @@ CSockRecv::CSockRecv()
     m_sockfd = -1;
     m_host_ip = "";
     m_host_mac = "";
-    pthread_mutex_init(&mutex,NULL);
 }
 
 CSockRecv::~CSockRecv()
@@ -39,31 +38,27 @@ CSockRecv* CSockRecv::instance()
 
 uint8_t CSockRecv::createRecv(string nic)
 {
-    pthread_mutex_lock(&mutex); 
+    CGuard guard(mutex_createRecv);
     if(m_tid != 0)
     {
-        pthread_mutex_unlock(&mutex);
         WARN("receive thread exists, return\n"); 
         return 1;
     }
     m_sockfd = socket(PF_PACKET, SOCK_RAW, htons(ETH_P_ALL));
     if(m_sockfd == -1)
     {
-        pthread_mutex_unlock(&mutex); 
         ERRORNO("create receive socket failed\n");
         return 0;
     }
     if(listenNIC(nic) == 0)
     {
         close(m_sockfd);
-        pthread_mutex_unlock(&mutex); 
         ERROR("listen NIC failed\n");
         return 0;
     }
     m_host_ip = CHostBase::instance()->getHostIP(nic);
     m_host_mac = CHostBase::instance()->getHostMAC(nic);
     pthread_create(&m_tid, NULL, recvThread, this);//　线程放在最后建立
-    pthread_mutex_unlock(&mutex); 
 
     return 1;
 }
@@ -85,30 +80,26 @@ void* CSockRecv::recvThread(void* param)
 
 void CSockRecv::pushBufferByPort(uint16_t port, uint8_t* buf, uint16_t len)
 {
-    pthread_mutex_lock(&mutex);
+    CGuard guard(mutex_pushBufferByPort);
     std::map<uint16_t, CRecvBuf*>::iterator it;
     it = m_portMap.find(port);
     if(it == m_portMap.end())
     {
-        pthread_mutex_unlock(&mutex); 
         return;
     }
     it->second->pushBack(buf, len);
-    pthread_mutex_unlock(&mutex);  
 }
 
 void CSockRecv::pushBufferByProto(uint16_t proto, uint8_t* buf, uint16_t len)
 {
-    pthread_mutex_lock(&mutex);
+    CGuard guard(mutex_pushBufferByProto);
     std::map<uint16_t, CRecvBuf*>::iterator it;
     it = m_protocolMap.find(proto);
     if(it == m_protocolMap.end())
     {
-        pthread_mutex_unlock(&mutex); 
         return;
     }
     it->second->pushBack(buf, len);
-    pthread_mutex_unlock(&mutex);
 }
 
 uint8_t CSockRecv::dstIsHostMac(string mac)
@@ -215,50 +206,44 @@ uint8_t CSockRecv::parseData(uint8_t* buf, uint16_t len)
 
 void CSockRecv::closePort(uint16_t port)
 {
-    pthread_mutex_lock(&mutex);
+    CGuard guard(mutex_closePort);
     std::map<uint16_t, CRecvBuf*>::iterator it;
     it = m_portMap.find(port);
     if(it == m_portMap.end())
     {
         WARN("the port %d dose not exist, cannot be closed\n", port);
-        pthread_mutex_unlock(&mutex); 
         return;
     }
     m_portMap.erase(it);
     INFO("port %d is closed successfully\n", port);
-    pthread_mutex_unlock(&mutex); 
 }
 
 void CSockRecv::addPort(uint16_t port, uint32_t memSize)
 {
-    pthread_mutex_lock(&mutex);
+    CGuard guard(mutex_addPort);
     std::map<uint16_t, CRecvBuf*>::iterator it;
     it = m_portMap.find(port);
     if(it != m_portMap.end())
     {
         WARN("the port %d exists\n", port);
-        pthread_mutex_unlock(&mutex); 
         return;
     }
     m_portMap.insert(make_pair(port, new CRecvBuf(memSize, port)));
     INFO("add port %d succeed\n", port);
-    pthread_mutex_unlock(&mutex); 
 }
 
 void CSockRecv::addProtocol(uint16_t proto, uint32_t memSize)
 {
-    pthread_mutex_lock(&mutex);
+    CGuard guard(mutex_addProtocol);
     std::map<uint16_t, CRecvBuf*>::iterator it;
     it = m_protocolMap.find(proto);
     if(it != m_portMap.end())
     {
         WARN("the protocol 0x%x exists\n", proto);
-        pthread_mutex_unlock(&mutex); 
         return;
     }
     m_protocolMap.insert(make_pair(proto, new CRecvBuf(memSize, proto)));
     INFO("add protocol 0x%x succeed\n", proto);
-    pthread_mutex_unlock(&mutex); 
 }
 
 uint8_t CSockRecv::listenNIC(string nic)
@@ -305,17 +290,15 @@ uint8_t CSockRecv::listenNIC(string nic)
 
 int16_t CSockRecv::popBuffer(uint8_t* &buf, uint16_t port)
 {
-    pthread_mutex_lock(&mutex);
+    CGuard guard(mutex_popBuffer);
     std::map<uint16_t, CRecvBuf*>::iterator it;
     it = m_portMap.find(port);
     if(it == m_portMap.end())
     {
-        WARN("port %d is not listened\n", port);
-        pthread_mutex_unlock(&mutex); 
+        WARN("port %d is not listened\n", port); 
         return -1;
     }
     uint16_t len = it->second->popFront(buf);
-    pthread_mutex_unlock(&mutex);  
 
     return len;
 }
@@ -336,10 +319,9 @@ CRecvBuf::~CRecvBuf()
 
 uint8_t CRecvBuf::pushBack(uint8_t* buf, uint16_t len)
 {
-    pthread_mutex_lock(&mutex);
+    CGuard guard(mutex_pushBack);
     if((m_bufSize + len) > m_memSize)
     {
-        pthread_mutex_unlock(&mutex);
         WARN("port %d recv buffer, out of memory\n", m_port);
         return 0;
     }
@@ -357,17 +339,15 @@ uint8_t CRecvBuf::pushBack(uint8_t* buf, uint16_t len)
     m_bufSize += len;
     m_bufCount++;
     INFO("port: %d, m_bufMap size: %d, memory used: %d\n", m_port, m_bufCount, m_bufSize);
-    pthread_mutex_unlock(&mutex);
 
     return 1;
 }
 
 int16_t CRecvBuf::popFront(uint8_t* &buf)
 {
-    pthread_mutex_lock(&mutex);
+    CGuard guard(mutex_popFront);
     if(m_bufMap.size() == 0)
     {
-        pthread_mutex_unlock(&mutex);
         buf = NULL;
         return 0;
     }
@@ -377,6 +357,6 @@ int16_t CRecvBuf::popFront(uint8_t* &buf)
     m_bufMap.erase(it);
     m_bufSize -= len;
     m_bufCount--;
-    pthread_mutex_unlock(&mutex);
+
     return len;
 }

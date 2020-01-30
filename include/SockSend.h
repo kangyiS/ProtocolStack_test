@@ -2,7 +2,7 @@
 #define __SOCK_SEND_H__
 
 #include <iostream> // std
-#include <pthread.h>
+#include "Guard.h"
 
 class CSockSend
 {
@@ -13,6 +13,6 @@ private:
     CSockSend();
     ~CSockSend();
     int16_t m_sockfd;
-    pthread_mutex_t mutex;
+    pthread_mutex_t mutex_createSocket;
 };
 #endif
