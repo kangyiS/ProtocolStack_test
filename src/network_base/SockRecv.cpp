@@ -59,6 +59,7 @@ uint8_t CSockRecv::createRecv(string nic)
     m_host_ip = CHostBase::instance()->getHostIP(nic);
     m_host_mac = CHostBase::instance()->getHostMAC(nic);
     pthread_create(&m_tid, NULL, recvThread, this);//　线程放在最后建立
+    INFO("receive thread is built\n");
 
     return 1;
 }
@@ -97,6 +98,7 @@ void CSockRecv::pushBufferByProto(uint16_t proto, uint8_t* buf, uint16_t len)
     it = m_protocolMap.find(proto);
     if(it == m_protocolMap.end())
     {
+        WARN("protocol 0x%x is not listened\n", proto);
         return;
     }
     it->second->pushBack(buf, len);
@@ -199,6 +201,16 @@ uint8_t CSockRecv::parseData(uint8_t* buf, uint16_t len)
     }
     else if(ntohs(ethHeader->ether_type) == ARP_PROTO_ID) //　arp协议
     {
+        if(eth_dst == "ff:ff:ff:ff:ff:ff")//　暂时只接收arp应答协议
+        {
+            return 0;
+        }
+        /*INFO("received arp packet\n");
+        for(uint16_t i=0; i<len; i++)
+        {
+            printf("0x%.2x ", *(buf+i));
+        }
+        printf("\n");*/
         pushBufferByProto(ARP_PROTO_ID, buf, len);
     }
     return 1;
@@ -237,13 +249,13 @@ void CSockRecv::addProtocol(uint16_t proto, uint32_t memSize)
     CGuard guard(mutex_addProtocol);
     std::map<uint16_t, CRecvBuf*>::iterator it;
     it = m_protocolMap.find(proto);
-    if(it != m_portMap.end())
+    if(it != m_protocolMap.end())
     {
         WARN("the protocol 0x%x exists\n", proto);
         return;
     }
     m_protocolMap.insert(make_pair(proto, new CRecvBuf(memSize, proto)));
-    INFO("add protocol 0x%x succeed\n", proto);
+    INFO("add protocol 0x%x successfully\n", proto);
 }
 
 uint8_t CSockRecv::listenNIC(string nic)
@@ -288,15 +300,32 @@ uint8_t CSockRecv::listenNIC(string nic)
     return 1;
 }
 
-int16_t CSockRecv::popBuffer(uint8_t* &buf, uint16_t port)
+int16_t CSockRecv::popBuffer(uint8_t* &buf, uint16_t code, uint8_t type)
 {
     CGuard guard(mutex_popBuffer);
     std::map<uint16_t, CRecvBuf*>::iterator it;
-    it = m_portMap.find(port);
-    if(it == m_portMap.end())
+    if(type == BUFF_PORT) // port
     {
-        WARN("port %d is not listened\n", port); 
-        return -1;
+        it = m_portMap.find(code);
+        if(it == m_portMap.end())
+        {
+            WARN("port %d is not listened\n", code); 
+            return ERR_NO_PORT;
+        }
+    }
+    else if(type == BUFF_PROTOCOL) // protocol
+    {
+        it = m_protocolMap.find(code);
+        if(it == m_protocolMap.end())
+        {
+            WARN("protocol %d is not listened\n", code); 
+            return ERR_NO_PROTOCOL;
+        }
+    }
+    else
+    {
+        ERROR("type %d is not exist\n", type);
+        return ERR_NO_TYPE;
     }
     uint16_t len = it->second->popFront(buf);
 

@@ -94,41 +94,23 @@ int16_t CIPproto::sendArpRequest(string dst_ip)
     return res;
 }
 
-// 暂时先这么写，以后要增加接收缓存管理，需要设置超时退出机制
 string CIPproto::recvArpResponse()
 {
-    string dst_mac = "";
-    uint8_t buffer[1500];
-    memset(buffer, 0, 1500);
-    struct sockaddr_ll client;
-    memset(&client, 0, sizeof(client));
-    socklen_t len=sizeof(client);
-
-    CSockTemp sock_temp;
-    int16_t sock_arprecv = sock_temp.createSocket(PF_PACKET, SOCK_RAW, htons(ETH_P_ARP));//只接受发往本机的ARP帧
-    if(sock_arprecv == -1)
+    int16_t len = 0;
+    uint8_t* buf_arp = NULL;
+    len = m_dataLinkLayer->receiveData(buf_arp, ARP_PROTO_ID, CSockRecv::BUFF_PROTOCOL, 3*1000);
+    if(len <= 0)
     {
-        ERRORNO("create ARP recv socket failed\n");
+        ERROR("receive data failed, error no: %d\n", len);
         return "";
     }
-    
-    while(1)
+    else
     {
-        int16_t res = recvfrom(sock_arprecv,buffer,1500,0,(struct sockaddr*)&client,&len);
-        if(res == -1)
-        {
-            ERRORNO("arp request recvfrom failed\n");
-            break;
-        }        
-        else
-        {
-            struct ether_header *eHeader=(struct ether_header*)buffer;
-            dst_mac = ether_ntoa((struct ether_addr*)eHeader->ether_shost);
-            break;
-        }
+        string dst_mac;
+        struct ether_arp* ea = (struct ether_arp*)buf_arp;//arp包数据结构
+        dst_mac = ether_ntoa((struct ether_addr*)ea->arp_sha);
+        return dst_mac;
     }
-
-    return dst_mac;
 }
 
 void CIPproto::setDstMAC(string dst_mac)
@@ -276,7 +258,7 @@ int32_t CIPproto::receiveData(uint8_t* &buf, uint32_t& l_ip_src, uint32_t& l_ip_
     map<uint8_t*, uint16_t> ip_pkt_map;
     while(1)
     {
-        len = m_dataLinkLayer->receiveData(buf_ip, port, timeout);
+        len = m_dataLinkLayer->receiveData(buf_ip, port, CSockRecv::BUFF_PORT, timeout);
         if(len <= 0)
         {
             ERROR("receive data failed, error no: %d\n", len);
@@ -288,7 +270,7 @@ int32_t CIPproto::receiveData(uint8_t* &buf, uint32_t& l_ip_src, uint32_t& l_ip_
         {
             buf = NULL;
             WARN("ip packet check failed\n");
-            return -3;
+            return ERR_IP_HEAD_CHECK;
         }
         uint16_t ipOffset = ntohs(ipHeader->ip_off) & 0x1fff;
         uint16_t ipMF = (ntohs(ipHeader->ip_off) & 0x2000) > 0 ? 1 : 0;
@@ -297,7 +279,7 @@ int32_t CIPproto::receiveData(uint8_t* &buf, uint32_t& l_ip_src, uint32_t& l_ip_
         {
             buf = NULL;
             ERROR("ip packet order chaos\n");
-            return -4;
+            return ERR_IP_PACKET_ORDER;
         }
         offset = ipOffset;
         // 这里保持网络字节序不变，方便udp层进行校验

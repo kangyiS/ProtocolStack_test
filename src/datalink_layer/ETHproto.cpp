@@ -3,7 +3,6 @@
 #include <netinet/ip.h>
 #include <netinet/ether.h>
 #include "Print.h"
-#include "SockRecv.h"
 #include "ETHproto.h"
 #include "HostBase.h"
 
@@ -105,8 +104,7 @@ void CETHproto::setDstMAC(string dst_mac)
     m_dst_mac = dst_mac;
 }
 
-// 查不到端口，返回-1，超时，返回-2
-int16_t CETHproto::receiveData(uint8_t* &buf, uint16_t port, int32_t timeout)
+int16_t CETHproto::receiveData(uint8_t* &buf, uint16_t code, uint8_t type, int32_t timeout)
 {
     struct timeval tv_start;
     struct timeval tv;
@@ -114,10 +112,9 @@ int16_t CETHproto::receiveData(uint8_t* &buf, uint16_t port, int32_t timeout)
     uint8_t* buf_eth = NULL;
     while(1)
     {
-        int16_t len = CSockRecv::instance()->popBuffer(buf_eth, port);
-        if(len == -1) // -1代表查不到端口，要马上返回
+        int16_t len = CSockRecv::instance()->popBuffer(buf_eth, code, type);
+        if((len == ERR_NO_PORT)||(len == ERR_NO_PROTOCOL)||(len == ERR_NO_TYPE)) // 查不到端口、协议或是查找类型出错，要马上返回
         {
-            ERROR("the port: %d is not registered, return\n", port);
             buf = NULL;
             return len;
         }
@@ -136,7 +133,7 @@ int16_t CETHproto::receiveData(uint8_t* &buf, uint16_t port, int32_t timeout)
             {
                 WARN("receive data timeout:　%d ms, return\n", timeout);
                 buf = NULL;                
-                return -2;
+                return ERR_TIMEOUT;
             }
         }
         else if(timeout == 0)// 0代表非阻塞模式

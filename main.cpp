@@ -6,7 +6,7 @@ CIGMPproto igmpSock("v2");
 
 using namespace std;
 
-#define TEST 2
+#define TEST 1
 string send_msg;
 uint16_t dataLen = 100;
 

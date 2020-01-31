@@ -32,13 +32,18 @@ public:
         NETWORK_LAYER = 8,
         TRANSPORT_LAYER = 24
     };
+    enum BUFF_TYPE
+    {
+        BUFF_PORT,
+        BUFF_PROTOCOL
+    };
 public:
     static CSockRecv* instance();
     uint8_t createRecv(std::string nic);
     void closePort(uint16_t port);
     void addPort(uint16_t port, uint32_t memSize);
     void addProtocol(uint16_t proto, uint32_t memSize);
-    int16_t popBuffer(uint8_t* &buf, uint16_t port);
+    int16_t popBuffer(uint8_t* &buf, uint16_t code, uint8_t type);
 
 private:
     CSockRecv();
