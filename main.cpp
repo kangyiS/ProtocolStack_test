@@ -1,3 +1,4 @@
+// arp应答线程刚写好，需要验证
 #include "UDPproto.h"
 #include "IGMPproto.h"
 
@@ -19,8 +20,9 @@ int main()
 #if TEST == 1
     mysock.init("wlx00e02c3112e7");
     mysock.connectToHostPort(1234);
-    mysock.connectToRemote("192.168.3.5", 1234);
+    mysock.connectToRemote("192.168.3.21", 1234);
     mysock.sendData(send_msg);
+    while(1);
 #elif TEST == 2
     mysock.init("wlx00e02c3112e7");
     mysock.listenHost(1234);

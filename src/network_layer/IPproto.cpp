@@ -76,6 +76,7 @@ int16_t CIPproto::sendArpRequest(string dst_ip)
 
     uint32_t l_src_ip = inet_addr(m_src_ip.c_str());
     uint32_t l_dst_ip = inet_addr(dst_ip.c_str());
+
     struct ether_arp ea;//arp包数据结构
     // arp数据包
     ea.arp_hrd = htons(ARPHRD_ETHER);//硬件类型  2 bytes

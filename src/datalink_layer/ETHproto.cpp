@@ -5,6 +5,7 @@
 #include "Print.h"
 #include "ETHproto.h"
 #include "HostBase.h"
+#include "SockSend.h"
 
 using namespace std;
 
@@ -24,6 +25,7 @@ CETHproto::~CETHproto()
 void CETHproto::setNIC(string nic)
 {
     m_nic = nic;
+    CSockSend::instance()->setNIC(nic);
 }
 
 string CETHproto::getNIC()
@@ -62,12 +64,6 @@ uint16_t CETHproto::getMTU(uint8_t refresh)
 int16_t CETHproto::sendData(int16_t sock, void* data, uint16_t dataLen, int16_t flags, uint16_t proto)
 {
     int res = 0;
-
-    struct sockaddr_ll dst_info;
-    memset(&dst_info, 0, sizeof(dst_info));
-    dst_info.sll_family = PF_PACKET;
-    dst_info.sll_ifindex = if_nametoindex(m_nic.c_str());//返回对应接口名的编号
-
     struct ether_header eh;
     if(m_dst_mac == "")
     {
@@ -94,7 +90,8 @@ int16_t CETHproto::sendData(int16_t sock, void* data, uint16_t dataLen, int16_t 
         printf("0x%x ", *(frame+i));
     }
     printf("\n");*/
-    res = sendto(sock, frame, frameLen, flags, (struct sockaddr *)&dst_info, sizeof(dst_info));
+    //res = sendto(sock, frame, frameLen, flags, (struct sockaddr *)&dst_info, sizeof(dst_info));
+    res = CSockSend::instance()->sendData(sock, frame, frameLen, flags);
     delete frame;
     return res;
 }

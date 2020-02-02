@@ -10,6 +10,7 @@
 #include <linux/udp.h> // struct udphdr
 #include "ETHproto.h"
 #include "SockRecv.h"
+#include "SockSend.h"
 #include "Print.h"
 #include "HostBase.h"
 #include "NetProtocolBase.h"
@@ -18,10 +19,13 @@ using namespace std;
 
 CSockRecv::CSockRecv()
 {
-    m_tid = 0;
+    m_tid_recvData = 0;
+    m_tid_resProto = 0;
     m_sockfd = -1;
     m_host_ip = "";
     m_host_mac = "";
+    pthread_mutex_init(&mutex_pushBufferByProto, NULL);
+    pthread_cond_init(&cond_resProto, NULL);
 }
 
 CSockRecv::~CSockRecv()
@@ -39,7 +43,7 @@ CSockRecv* CSockRecv::instance()
 uint8_t CSockRecv::createRecv(string nic)
 {
     CGuard guard(mutex_createRecv);
-    if(m_tid != 0)
+    if(m_tid_recvData != 0)
     {
         WARN("receive thread exists, return\n"); 
         return 1;
@@ -58,10 +62,80 @@ uint8_t CSockRecv::createRecv(string nic)
     }
     m_host_ip = CHostBase::instance()->getHostIP(nic);
     m_host_mac = CHostBase::instance()->getHostMAC(nic);
-    pthread_create(&m_tid, NULL, recvThread, this);//　线程放在最后建立
+    pthread_create(&m_tid_resProto, NULL, resProtoThread, this);//　应答协议的线程，比如响应arp,igmp协议
+    pthread_create(&m_tid_recvData, NULL, recvThread, this);//　线程放在最后建立
     INFO("receive thread is built\n");
 
     return 1;
+}
+
+void* CSockRecv::resProtoThread(void* param)
+{
+    CSockRecv* parent = (CSockRecv*)param;
+    while(1)
+    {
+        pthread_mutex_lock(&parent->mutex_pushBufferByProto);
+        uint8_t response = 0;
+        uint8_t* buf = NULL;
+        uint16_t len = 0;
+        uint16_t proto = 0;
+        std::map<uint16_t, CRecvBuf*>::iterator it;
+        for(it = parent->m_resProtoMap.begin(); it != parent->m_resProtoMap.end(); it++)
+        {
+            if(it->second->size() > 0)
+            {
+                response = 1;
+                proto = it->first;
+                len = it->second->popFront(buf);
+                parent->responseProto(proto, buf, len);
+            }
+        }
+        if(response == 0)
+        {
+            pthread_cond_wait(&parent->cond_resProto, &parent->mutex_pushBufferByProto);
+        }
+        pthread_mutex_unlock(&parent->mutex_pushBufferByProto);
+    }
+}
+
+void CSockRecv::responseProto(uint16_t proto, uint8_t* buf, uint16_t len)
+{
+    WARN("CSockRecv::responseProto, proto:0x%x\n", proto);
+    for(uint16_t i = 0; i < len; i++)
+    {
+        printf("0x%.2x ", *(buf+i));
+    }
+    printf("\n");
+    if(proto == ARP_PROTO_ID)
+    {
+        responseARP(buf, len);
+    }
+}
+
+void CSockRecv::responseARP(uint8_t* buf, uint16_t len)
+{
+    struct ether_header* ether = (struct ether_header*)buf;
+    struct ether_arp* arp = (struct ether_arp*)(buf+sizeof(struct ether_header));
+    if(arp->arp_op != htons(ARPOP_REQUEST))// 确认一下这是arp请求包
+    {
+        return;
+    }
+    uint8_t dst_mac[6] = {0};
+    uint8_t dst_ip[4] = {0};
+    uint32_t src_ip = 0;
+    memcpy(dst_mac, arp->arp_sha, 6);
+    memcpy(dst_ip, arp->arp_spa, 4);
+    src_ip = inet_addr(m_host_ip.c_str());
+    
+    memcpy(ether->ether_dhost, dst_mac, 6);
+    memcpy(ether->ether_shost, ether_aton(m_host_mac.c_str()), 6);
+    arp->arp_op = htons(ARPOP_REPLY);
+    memcpy(arp->arp_sha, ether_aton(m_host_mac.c_str()), ETH_ALEN);//源MAC   6 bytes
+    memcpy(arp->arp_spa, &src_ip, 4);//源IP     4 bytes
+    memcpy(arp->arp_tha, dst_mac, ETH_ALEN);//目的MAC  6 bytes
+    memcpy(arp->arp_tpa, dst_ip, 4); // 目的ip  4 bytes
+
+    CSockSend::instance()->sendData(m_sockfd, buf, len, 0);
 }
 
 void* CSockRecv::recvThread(void* param)
@@ -91,17 +165,35 @@ void CSockRecv::pushBufferByPort(uint16_t port, uint8_t* buf, uint16_t len)
     it->second->pushBack(buf, len);
 }
 
-void CSockRecv::pushBufferByProto(uint16_t proto, uint8_t* buf, uint16_t len)
+void CSockRecv::pushBufferByProto(uint16_t proto, uint8_t* buf, uint16_t len, uint8_t signal)
 {
-    CGuard guard(mutex_pushBufferByProto);
-    std::map<uint16_t, CRecvBuf*>::iterator it;
-    it = m_protocolMap.find(proto);
-    if(it == m_protocolMap.end())
+    pthread_mutex_lock(&mutex_pushBufferByProto);  
+    if(signal)
     {
-        WARN("protocol 0x%x is not listened\n", proto);
-        return;
+        std::map<uint16_t, CRecvBuf*>::iterator it;
+        it = m_resProtoMap.find(proto);
+        if(it == m_resProtoMap.end())
+        {
+            pthread_mutex_unlock(&mutex_pushBufferByProto);  
+            WARN("protocol 0x%x is not listened\n", proto);
+            return;
+        }
+        it->second->pushBack(buf, len);
+        pthread_cond_signal(&cond_resProto);
     }
-    it->second->pushBack(buf, len);
+    else
+    {
+        std::map<uint16_t, CRecvBuf*>::iterator it;
+        it = m_protocolMap.find(proto);
+        if(it == m_protocolMap.end())
+        {
+            pthread_mutex_unlock(&mutex_pushBufferByProto);
+            WARN("protocol 0x%x is not listened\n", proto);
+            return;
+        }
+        it->second->pushBack(buf, len);
+    }
+    pthread_mutex_unlock(&mutex_pushBufferByProto);
 }
 
 uint8_t CSockRecv::dstIsHostMac(string mac)
@@ -142,6 +234,11 @@ uint8_t CSockRecv::parseData(uint8_t* buf, uint16_t len)
     if(!dstIsHostMac(eth_dst))
     {
         INFO("dst mac is not Host\n");
+        return 0;
+    }
+    if(eth_src == m_host_mac) // 本机发出去的包不用解析
+    {
+        INFO("this packet is from Host\n");
         return 0;
     }
     if(ntohs(ethHeader->ether_type) == 0x0800) // ip
@@ -201,17 +298,18 @@ uint8_t CSockRecv::parseData(uint8_t* buf, uint16_t len)
     }
     else if(ntohs(ethHeader->ether_type) == ARP_PROTO_ID) //　arp协议
     {
-        if(eth_dst == "ff:ff:ff:ff:ff:ff")//　暂时只接收arp应答协议
+        uint8_t signal = 0;
+        if(eth_dst == "ff:ff:ff:ff:ff:ff")//　arp请求协议，需要马上做出回应
         {
-            return 0;
+            signal = 1;
         }
-        /*INFO("received arp packet\n");
+        DEBUG("received arp packet, signal:%d\n", signal);
         for(uint16_t i=0; i<len; i++)
         {
             printf("0x%.2x ", *(buf+i));
         }
-        printf("\n");*/
-        pushBufferByProto(ARP_PROTO_ID, buf, len);
+        printf("\n");
+        pushBufferByProto(ARP_PROTO_ID, buf, len, signal);
     }
     return 1;
 }
@@ -255,6 +353,7 @@ void CSockRecv::addProtocol(uint16_t proto, uint32_t memSize)
         return;
     }
     m_protocolMap.insert(make_pair(proto, new CRecvBuf(memSize, proto)));
+    m_resProtoMap.insert(make_pair(proto, new CRecvBuf(memSize, proto)));
     INFO("add protocol 0x%x successfully\n", proto);
 }
 
@@ -343,7 +442,7 @@ CRecvBuf::CRecvBuf(uint32_t memSize, uint16_t port)
 
 CRecvBuf::~CRecvBuf()
 {
-    m_bufMap.clear();
+    m_bufList.clear();
 }
 
 uint8_t CRecvBuf::pushBack(uint8_t* buf, uint16_t len)
@@ -357,7 +456,7 @@ uint8_t CRecvBuf::pushBack(uint8_t* buf, uint16_t len)
 
     uint8_t* buf_temp = new uint8_t[len];
     memcpy(buf_temp, buf, len);
-    m_bufMap.insert(make_pair(len, buf_temp));
+    m_bufList.push_back(make_pair(len, buf_temp));
     /*printf("CRecvBuf::pushBack, ");
     for(uint16_t i = 0; i < len; i++)
     {
@@ -367,7 +466,7 @@ uint8_t CRecvBuf::pushBack(uint8_t* buf, uint16_t len)
 
     m_bufSize += len;
     m_bufCount++;
-    INFO("port: %d, m_bufMap size: %d, memory used: %d\n", m_port, m_bufCount, m_bufSize);
+    INFO("port: %d, m_bufList size: %d, memory used: %d\n", m_port, m_bufCount, m_bufSize);
 
     return 1;
 }
@@ -375,17 +474,22 @@ uint8_t CRecvBuf::pushBack(uint8_t* buf, uint16_t len)
 int16_t CRecvBuf::popFront(uint8_t* &buf)
 {
     CGuard guard(mutex_popFront);
-    if(m_bufMap.size() == 0)
+    if(m_bufList.size() == 0)
     {
         buf = NULL;
         return 0;
     }
-    map<uint16_t, uint8_t*>::iterator it = m_bufMap.begin();
+    list<pair<uint16_t, uint8_t*> >::iterator it = m_bufList.begin();
     uint16_t len = it->first;
     buf = it->second;
-    m_bufMap.erase(it);
+    m_bufList.erase(it);
     m_bufSize -= len;
     m_bufCount--;
 
     return len;
+}
+
+uint32_t CRecvBuf::size()
+{
+    return m_bufSize;
 }

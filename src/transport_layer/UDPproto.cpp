@@ -41,6 +41,7 @@ int8_t CUDPproto::init(string nic, uint32_t memSize)
         return 0;
     }
 
+    // 这个接收线程和udp无关，应该在设备刚启动的时候就开启，可以用来接收arp,igmp等数据包
     if(CSockRecv::instance()->createRecv(nic) == 0)
     {
         ERROR("start receive thread failed\n");
