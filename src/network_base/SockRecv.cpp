@@ -100,12 +100,12 @@ void* CSockRecv::resProtoThread(void* param)
 
 void CSockRecv::responseProto(uint16_t proto, uint8_t* buf, uint16_t len)
 {
-    WARN("CSockRecv::responseProto, proto:0x%x\n", proto);
+    /*WARN("CSockRecv::responseProto, proto:0x%x\n", proto);
     for(uint16_t i = 0; i < len; i++)
     {
         printf("0x%.2x ", *(buf+i));
     }
-    printf("\n");
+    printf("\n");*/
     if(proto == ARP_PROTO_ID)
     {
         responseARP(buf, len);
@@ -118,6 +118,7 @@ void CSockRecv::responseARP(uint8_t* buf, uint16_t len)
     struct ether_arp* arp = (struct ether_arp*)(buf+sizeof(struct ether_header));
     if(arp->arp_op != htons(ARPOP_REQUEST))// 确认一下这是arp请求包
     {
+        ERROR("arp request packet format error, refuse to response\n");
         return;
     }
     uint8_t dst_mac[6] = {0};
@@ -136,6 +137,7 @@ void CSockRecv::responseARP(uint8_t* buf, uint16_t len)
     memcpy(arp->arp_tpa, dst_ip, 4); // 目的ip  4 bytes
 
     CSockSend::instance()->sendData(m_sockfd, buf, len, 0);
+    INFO("send arp response packet to dst_mac: %s\n", ether_ntoa((struct ether_addr*)dst_mac));
 }
 
 void* CSockRecv::recvThread(void* param)
@@ -302,13 +304,17 @@ uint8_t CSockRecv::parseData(uint8_t* buf, uint16_t len)
         if(eth_dst == "ff:ff:ff:ff:ff:ff")//　arp请求协议，需要马上做出回应
         {
             signal = 1;
+            INFO("received arp request, src mac: %s\n", eth_src);
         }
-        DEBUG("received arp packet, signal:%d\n", signal);
-        for(uint16_t i=0; i<len; i++)
+        else
+        {
+            INFO("received arp response, src mac: %s\n", eth_src);
+        }
+        /*for(uint16_t i=0; i<len; i++)
         {
             printf("0x%.2x ", *(buf+i));
         }
-        printf("\n");
+        printf("\n");*/
         pushBufferByProto(ARP_PROTO_ID, buf, len, signal);
     }
     return 1;

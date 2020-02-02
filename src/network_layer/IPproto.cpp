@@ -218,14 +218,12 @@ int16_t CIPproto::sendData(int16_t sock, void* data, uint16_t dataLen, int16_t f
         }
         // 计算ip数据包长度
         ipHeader.ip_len = htons(ipData_len+ipHdrLen);
-        printf("ip packet %d, len: %d\n", i, ipData_len+ipHdrLen);
 
         // 计算偏移量
         uint16_t offset = (i-1) * (mtuReal-ipHdrLen) >> 3;
         ip_off |= offset;
         //ip_off |= 0x4000; // DF=1
         ipHeader.ip_off = htons(ip_off);
-        printf("offset: %d\n", offset);
         // ip头校验
         ipHeader.ip_sum = 0;// 这里一定要先置0
         uint16_t ip_sum = checkSum((uint16_t*)&ipHeader, ipHdrLen/2);

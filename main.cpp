@@ -7,7 +7,7 @@ CIGMPproto igmpSock("v2");
 
 using namespace std;
 
-#define TEST 1
+#define TEST 2
 string send_msg;
 uint16_t dataLen = 100;
 
@@ -26,8 +26,7 @@ int main()
 #elif TEST == 2
     mysock.init("wlx00e02c3112e7");
     mysock.listenHost(1234);
-    while(1);
-   /* uint8_t* buf = NULL;
+    uint8_t* buf = NULL;
     while(1)
     {
         int16_t len = mysock.receiveData(buf, 2000);
@@ -38,7 +37,7 @@ int main()
                 printf("%d ", *(buf+i));
             printf("\n");
         }
-    }*/
+    }
     mysock.closePort();
 #elif TEST == 3
     igmpSock.createSocket();
