@@ -11,6 +11,11 @@ using namespace std;
 string send_msg;
 uint16_t dataLen = 100;
 
+const string g_host_nic = "wlx00e02c3112e7";
+const uint16_t g_host_port = 1234;
+const string g_dst_ip = "192.168.3.21";
+const uint16_t g_dst_port = 1234;
+
 int main()
 {
     for(uint16_t i = 0; i < dataLen; i++)
@@ -18,14 +23,13 @@ int main()
         send_msg.append("a");
     }
 #if TEST == 1
-    mysock.init("wlx00e02c3112e7");
-    mysock.connectToHostPort(1234);
-    mysock.connectToRemote("192.168.3.21", 1234);
+    mysock.init(g_host_nic);
+    mysock.connectToHostPort(g_host_port);
+    mysock.connectToRemote(g_dst_ip, g_dst_port);
     mysock.sendData(send_msg);
-    while(1);
 #elif TEST == 2
-    mysock.init("wlx00e02c3112e7");
-    mysock.listenHost(1234);
+    mysock.init(g_host_nic);
+    mysock.listenHost(g_host_port);
     uint8_t* buf = NULL;
     while(1)
     {

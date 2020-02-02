@@ -273,7 +273,6 @@ int32_t CIPproto::receiveData(uint8_t* &buf, uint32_t& l_ip_src, uint32_t& l_ip_
         }
         uint16_t ipOffset = ntohs(ipHeader->ip_off) & 0x1fff;
         uint16_t ipMF = (ntohs(ipHeader->ip_off) & 0x2000) > 0 ? 1 : 0;
-        DEBUG("ip_off : 0x%.4x\n", ntohs(ipHeader->ip_off));
         if((int32_t)ipOffset <= offset)//　可以考虑用数据长度和偏移量来校验
         {
             buf = NULL;

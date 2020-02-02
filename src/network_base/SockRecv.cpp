@@ -304,11 +304,11 @@ uint8_t CSockRecv::parseData(uint8_t* buf, uint16_t len)
         if(eth_dst == "ff:ff:ff:ff:ff:ff")//　arp请求协议，需要马上做出回应
         {
             signal = 1;
-            INFO("received arp request, src mac: %s\n", eth_src);
+            INFO("received arp request, src mac: %s\n", eth_src.c_str());
         }
         else
         {
-            INFO("received arp response, src mac: %s\n", eth_src);
+            INFO("received arp response, src mac: %s\n", eth_src.c_str());
         }
         /*for(uint16_t i=0; i<len; i++)
         {
@@ -345,7 +345,7 @@ void CSockRecv::addPort(uint16_t port, uint32_t memSize)
         return;
     }
     m_portMap.insert(make_pair(port, new CRecvBuf(memSize, port)));
-    INFO("add port %d succeed\n", port);
+    INFO("add port %d successfully\n", port);
 }
 
 void CSockRecv::addProtocol(uint16_t proto, uint32_t memSize)
@@ -355,12 +355,12 @@ void CSockRecv::addProtocol(uint16_t proto, uint32_t memSize)
     it = m_protocolMap.find(proto);
     if(it != m_protocolMap.end())
     {
-        WARN("the protocol 0x%x exists\n", proto);
+        WARN("the protocol 0x%.4x exists\n", proto);
         return;
     }
     m_protocolMap.insert(make_pair(proto, new CRecvBuf(memSize, proto)));
     m_resProtoMap.insert(make_pair(proto, new CRecvBuf(memSize, proto)));
-    INFO("add protocol 0x%x successfully\n", proto);
+    INFO("add protocol 0x%.4x successfully\n", proto);
 }
 
 uint8_t CSockRecv::listenNIC(string nic)
