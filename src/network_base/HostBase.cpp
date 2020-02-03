@@ -132,7 +132,7 @@ string CHostBase::getHostIP(string nic)
         }
         sin = (struct sockaddr_in*)&ifr_localhost.ifr_addr;
         m_ip = inet_ntoa(sin->sin_addr);
-        INFO("host ip: %s\n", m_ip);
+        INFO("host ip: %s\n", m_ip.c_str());
     }
 
     return m_ip;

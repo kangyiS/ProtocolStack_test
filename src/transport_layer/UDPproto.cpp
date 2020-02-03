@@ -33,7 +33,7 @@ int8_t CUDPproto::connectToHost(uint16_t port, uint32_t memSize)
         ERRORNO("create socket failed\n");
         return 0;
     }
-
+    m_networkLayer->refreshHostParam();
     // 本地端口
     m_src_port = port;
     CSockRecv::instance()->addPort(port, memSize);
@@ -61,7 +61,6 @@ int8_t CUDPproto::connectToRemote(string dst_ip, uint16_t dst_port)
         WARN("send arp request failed\n");
         return 0;
     }
-    
     string dst_mac = m_networkLayer->recvArpResponse();
     if(dst_mac == "")
     {
@@ -73,7 +72,6 @@ int8_t CUDPproto::connectToRemote(string dst_ip, uint16_t dst_port)
     m_networkLayer->setDstMAC(dst_mac);
     m_networkLayer->setDstIP(dst_ip);
     m_dst_port = dst_port;
-    
 }
 
 int16_t CUDPproto::sendData(string msg)

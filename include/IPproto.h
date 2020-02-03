@@ -22,7 +22,7 @@ public:
     std::string getDstIP();
     int16_t sendData(int16_t sock, void* data, uint16_t dataLen, int16_t flags, uint16_t proto);
     int32_t receiveData(uint8_t* &buf, uint32_t& l_ip_src, uint32_t& l_ip_dst, uint16_t port, int32_t timeout);
-
+    void refreshHostParam();
 private:
     uint8_t ipPacketCheck(struct ip* header);
 private:

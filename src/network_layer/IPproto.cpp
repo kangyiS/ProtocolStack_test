@@ -13,7 +13,7 @@ using namespace std;
 
 CIPproto::CIPproto()
 {
-    m_src_ip = CHostBase::instance()->getHostIP();
+    m_src_ip = "";
     m_dst_ip = "";
     // 用随机数初始化数据包id
     srand((int16_t)time(0));
@@ -40,6 +40,12 @@ string CIPproto::getHostIP(uint8_t refresh)
 	m_src_ip = CHostBase::instance()->getHostIP(host_nic);
     }
     return m_src_ip;
+}
+
+void CIPproto::refreshHostParam()
+{
+    m_src_ip = CHostBase::instance()->getHostIP();
+    m_dataLinkLayer->refreshHostParam();
 }
 
 void CIPproto::setNIC(string nic)
@@ -70,13 +76,11 @@ int16_t CIPproto::sendArpRequest(string dst_ip)
         ERRORNO("create ARP request socket failed\n");
         return 0;
     }
-
     string src_mac = m_dataLinkLayer->getHostMAC();
     string dst_mac = "ff:ff:ff:ff:ff:ff";
-
     uint32_t l_src_ip = inet_addr(m_src_ip.c_str());
     uint32_t l_dst_ip = inet_addr(dst_ip.c_str());
-
+    
     struct ether_arp ea;//arp包数据结构
     // arp数据包
     ea.arp_hrd = htons(ARPHRD_ETHER);//硬件类型  2 bytes
@@ -88,10 +92,8 @@ int16_t CIPproto::sendArpRequest(string dst_ip)
     memcpy(ea.arp_spa, &l_src_ip, 4);//源IP     4 bytes
     memcpy(ea.arp_tha, ether_aton(dst_mac.c_str()), ETH_ALEN);//目的MAC  6 bytes
     memcpy(ea.arp_tpa, &l_dst_ip, 4); // 目的ip  4 bytes
-
     m_dataLinkLayer->setDstMAC(dst_mac);
     int16_t res = m_dataLinkLayer->sendData(sock_arpreq, &ea, sizeof(ea), 0, ARP_PROTO_ID);
-
     return res;
 }
 

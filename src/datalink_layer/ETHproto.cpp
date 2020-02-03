@@ -11,8 +11,8 @@ using namespace std;
 
 CETHproto::CETHproto()
 {
-    m_nic = CHostBase::instance()->getHostNIC();
-    m_src_mac = CHostBase::instance()->getHostMAC();
+    m_nic = "";
+    m_src_mac = "";
     m_dst_mac = "";
     m_mtu = 0;
 }
@@ -20,6 +20,13 @@ CETHproto::CETHproto()
 CETHproto::~CETHproto()
 {
 
+}
+void CETHproto::refreshHostParam()
+{
+    m_nic = CHostBase::instance()->getHostNIC();
+    m_src_mac = CHostBase::instance()->getHostMAC();
+    m_mtu = CHostBase::instance()->getHostMTU();
+    CSockSend::instance()->setNIC(m_nic);
 }
 
 void CETHproto::setNIC(string nic)
@@ -84,13 +91,13 @@ int16_t CETHproto::sendData(int16_t sock, void* data, uint16_t dataLen, int16_t 
     memcpy(frame, &eh, sizeof(eh));
     memcpy(frame+sizeof(eh), (uint8_t*)data, dataLen);
 
-    /*printf("CETHproto::sendFrame, frame pkt: ");
+    /*printf("CETHproto::sendData, data pkt: ");
     for(uint16_t i = 0; i < frameLen; i++)
     {
-        printf("0x%x ", *(frame+i));
+        printf("0x%.2x ", *(frame+i));
     }
     printf("\n");*/
-    //res = sendto(sock, frame, frameLen, flags, (struct sockaddr *)&dst_info, sizeof(dst_info));
+    
     res = CSockSend::instance()->sendData(sock, frame, frameLen, flags);
     delete frame;
     return res;
