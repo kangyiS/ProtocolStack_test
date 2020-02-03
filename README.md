@@ -10,4 +10,4 @@ sudo ./demo <br>
 ## 3.Protocols supported
 1. UDP protocol, support to send and receive <br>
 2. ARP protocol, support to request and response <br>
-3. IGMP protocol, support to join, leave and response by versioin 2 <br>
+3. IGMP protocol, support to join, leave and response by version 2 <br>
