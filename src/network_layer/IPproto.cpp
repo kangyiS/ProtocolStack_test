@@ -13,7 +13,7 @@ using namespace std;
 
 CIPproto::CIPproto()
 {
-    m_src_ip = "";
+    m_src_ip = CHostBase::instance()->getHostIP();
     m_dst_ip = "";
     // 用随机数初始化数据包id
     srand((int16_t)time(0));

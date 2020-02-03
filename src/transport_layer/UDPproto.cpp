@@ -25,7 +25,7 @@ CUDPproto::~CUDPproto()
     m_networkLayer = NULL;
 }
 
-int8_t CUDPproto::init(string nic, uint32_t memSize)
+int8_t CUDPproto::connectToHost(uint16_t port, uint32_t memSize)
 {
     m_sockfd = CSockSend::instance()->createSocket();
     if(m_sockfd == -1)
@@ -34,63 +34,10 @@ int8_t CUDPproto::init(string nic, uint32_t memSize)
         return 0;
     }
 
-    m_networkLayer->setNIC(nic);
-    if(getHostParam() == 0)
-    {
-        ERROR("get host params failed\n");
-        return 0;
-    }
-
-    // 这个接收线程和udp无关，应该在设备刚启动的时候就开启，可以用来接收arp,igmp等数据包
-    if(CSockRecv::instance()->createRecv(nic) == 0)
-    {
-        ERROR("start receive thread failed\n");
-        return 0;
-    }
-    // 初始化的时候添加arp协议，可以接收arp请求数据包
-    // 还需要添加igmp协议，用来应答igmp请求
-    CSockRecv::instance()->addProtocol(ARP_PROTO_ID, 4*1024);
-
-    return 1;
-}
-
-int8_t CUDPproto::connectToHostPort(uint16_t port)
-{
     // 本地端口
     m_src_port = port;
+    CSockRecv::instance()->addPort(port, memSize);
     INFO("src port: %d\n",m_src_port);
-
-    return 1;
-}
-
-uint8_t CUDPproto::getHostParam()
-{
-    // 获取本地mtu
-    uint16_t mtu = m_networkLayer->getMTU(1);
-    if(mtu == 0)
-    {
-        ERROR("get mtu failed\n");
-        return 0;
-    }
-    INFO("localhost MTU: %d\n", mtu);
-
-    // 获取本地ip
-    string src_ip = m_networkLayer->getHostIP(1);
-    if(src_ip == "")
-    {
-        ERROR("get host ip failed\n");
-        return 0;
-    }
-    INFO("src ip: %s\n",src_ip.c_str());
-
-    // 获取本地mac
-    string src_mac = m_networkLayer->getHostMAC(1);
-    if(src_mac == "")
-    {
-        ERROR("get host mac failed\n");
-        return 0;
-    }
-    INFO("src mac: %s\n", src_mac.c_str());
 
     return 1;
 }
@@ -99,14 +46,6 @@ void CUDPproto::closePort()
 {
     CSockRecv::instance()->closePort(m_src_port);
     m_src_port = 0;
-}
-
-uint8_t CUDPproto::listenHost(uint16_t port, uint32_t memSize)
-{
-    m_src_port = port;
-    CSockRecv::instance()->addPort(port, memSize);
-    
-    return 1;
 }
 
 string CUDPproto::getNIC()

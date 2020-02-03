@@ -15,17 +15,14 @@ class CUDPproto : public CNetProtocolBase
 public:
     CUDPproto();
     ~CUDPproto();
-    int8_t init(std::string nic, uint32_t memSize = DEFAULT_RECV_BUF);
-    int8_t connectToHostPort(uint16_t port);
+    int8_t connectToHost(uint16_t port, uint32_t memSize = DEFAULT_RECV_BUF);
     std::string getNIC();
     int8_t connectToRemote(std::string ip, uint16_t port);
     int16_t sendData(std::string msg);
     void closePort();
-    uint8_t listenHost(uint16_t port, uint32_t memSize = DEFAULT_RECV_BUF);
     // timeout设置超时时间，单位ms，负数为阻塞模式，０为非阻塞模式
     int16_t receiveData(uint8_t* &buf, int32_t timeout = 0);
 private:
-    uint8_t getHostParam();
     uint8_t udpPacketCheck(struct udphdr* udpHdr, uint32_t ip_src, uint32_t ip_dst);
 private:
     int16_t m_sockfd;

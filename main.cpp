@@ -1,13 +1,14 @@
 // arp应答线程刚写好，需要验证
+
 #include "UDPproto.h"
 #include "IGMPproto.h"
-
+#include "HostBase.h"
 CUDPproto mysock;
 CIGMPproto igmpSock("v2");
 
 using namespace std;
 
-#define TEST 2
+#define TEST 1
 string send_msg;
 uint16_t dataLen = 100;
 
@@ -22,14 +23,13 @@ int main()
     {
         send_msg.append("a");
     }
-#if TEST == 1
-    mysock.init(g_host_nic);
-    mysock.connectToHostPort(g_host_port);
+    CHostBase::instance()->init(g_host_nic);
+#if TEST == 1 //udp send
+    mysock.connectToHost(g_host_port);
     mysock.connectToRemote(g_dst_ip, g_dst_port);
     mysock.sendData(send_msg);
-#elif TEST == 2
-    mysock.init(g_host_nic);
-    mysock.listenHost(g_host_port);
+#elif TEST == 2 //udp receive
+    mysock.connectToHost(g_host_port);
     uint8_t* buf = NULL;
     while(1)
     {

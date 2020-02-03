@@ -11,8 +11,8 @@ using namespace std;
 
 CETHproto::CETHproto()
 {
-    m_nic = "";
-    m_src_mac = "";
+    m_nic = CHostBase::instance()->getHostNIC();
+    m_src_mac = CHostBase::instance()->getHostMAC();
     m_dst_mac = "";
     m_mtu = 0;
 }
