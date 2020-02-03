@@ -1,14 +1,11 @@
-// arp应答线程刚写好，需要验证
-
 #include "UDPproto.h"
 #include "IGMPproto.h"
 #include "HostBase.h"
 CUDPproto mysock;
-CIGMPproto igmpSock("v2");
 
 using namespace std;
 
-#define TEST 1
+#define TEST 3
 string send_msg;
 uint16_t dataLen = 100;
 
@@ -43,11 +40,12 @@ int main()
         }
     }
     mysock.closePort();
-#elif TEST == 3
-    igmpSock.createSocket();
-    igmpSock.connectToHost("wlx00e02c3112e7", 1234);
-    igmpSock.joinMultiGroup("224.132.1.1");
-    mysock.listenHost("wlx00e02c3112e7", 1234);
+#elif TEST == 3 //igmp v2 join and response
+    CIGMPproto::instance()->init("v2");
+    CIGMPproto::instance()->joinMultiGroup("224.132.1.1");
+    CIGMPproto::instance()->joinMultiGroup("224.132.1.2");
+    CIGMPproto::instance()->joinMultiGroup("224.132.1.3");
+    CIGMPproto::instance()->joinMultiGroup("224.132.1.4");
     while(1);
 #endif
     return 0;

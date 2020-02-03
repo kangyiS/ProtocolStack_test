@@ -1,26 +1,35 @@
 #include "IGMPproto.h"
 #include <arpa/inet.h>
 #include <netinet/ether.h>
+#include <list>
 #include "Print.h"
 #include "SockSend.h"
 
 using namespace std;
 
-CIGMPproto::CIGMPproto(string version)
+CIGMPproto::CIGMPproto()
 {
     m_sockfd = -1;
-    m_src_port = 0;
     m_networkLayer = new CIPproto();
-    m_version = version;
+    m_version = "";
+    m_multiGroupAddr_query.push_back("224.0.0.1");//本地子网的所有系统，igmp查询指令中的目的ip地址
 }
 
 CIGMPproto::~CIGMPproto()
 {
     delete m_networkLayer;
     m_networkLayer = NULL;
+    m_multiGroupAddr_query.clear();
+    m_multiGroupAddr_report.clear();
 }
 
-int8_t CIGMPproto::createSocket()
+CIGMPproto* CIGMPproto::instance()
+{
+    static CIGMPproto* ptr = new CIGMPproto();
+    return ptr;
+}
+
+int8_t CIGMPproto::init(string version)
 {
     m_sockfd = CSockSend::instance()->createSocket();
     if(m_sockfd == -1)
@@ -28,51 +37,8 @@ int8_t CIGMPproto::createSocket()
         ERRORNO("create socket failed\n");
         return 0;
     }
-    return 1;
-}
-
-int8_t CIGMPproto::connectToHost(string nic, uint16_t port)
-{
-    m_networkLayer->setNIC(nic);
-    if(!getHostParam())
-    {
-        return 0;
-    }
-    // 本地端口
-    m_src_port = port;
-    INFO("src port: %d\n",m_src_port);
-
-    return 1;
-}
-
-uint8_t CIGMPproto::getHostParam()
-{
-    // 获取本地mtu
-    uint16_t mtu = m_networkLayer->getMTU(1);
-    if(mtu == 0)
-    {
-        ERROR("get mtu failed\n");
-        return 0;
-    }
-    INFO("localhost MTU: %d\n", mtu);
-
-    // 获取本地ip
-    string src_ip = m_networkLayer->getHostIP(1);
-    if(src_ip == "")
-    {
-        ERROR("get host ip failed\n");
-        return 0;
-    }
-    INFO("src ip: %s\n",src_ip.c_str());
-
-    // 获取本地mac
-    string src_mac = m_networkLayer->getHostMAC(1);
-    if(src_mac == "")
-    {
-        ERROR("get host mac failed\n");
-        return 0;
-    }
-    INFO("src mac: %s\n", src_mac.c_str());
+    m_version = version;
+    m_networkLayer->refreshHostParam();
 
     return 1;
 }
@@ -80,10 +46,24 @@ uint8_t CIGMPproto::getHostParam()
 int16_t CIGMPproto::joinMultiGroup(string multiIP)
 {
     int16_t res = -1;
+    
     if(m_version == "v2")
     {
         INFO("joinMultiGroup: %s\n", multiIP.c_str());
-        res = buildDatagram_v2(0x16, 0, multiIP);
+        res = buildDatagram_v2(IGMP_TYPE_JOIN, 0, multiIP);
+    }
+    if(res > 0)
+    {
+        list<string>::iterator it;
+        for(it = m_multiGroupAddr_report.begin(); it != m_multiGroupAddr_report.end(); it++)
+        {
+            if(*it == multiIP)
+            {
+                WARN("multiGroupAddr:%s has existed\n", multiIP.c_str());
+                return res;
+            }
+        }
+        m_multiGroupAddr_report.push_back(multiIP);
     }
     return res;
 }
@@ -94,7 +74,26 @@ int16_t CIGMPproto::leaveMultiGroup(string multiIP)
     if(m_version == "v2")
     {
         INFO("leaveMultiGroup: %s\n", multiIP.c_str());
-        res = buildDatagram_v2(0x17, 0, multiIP);
+        res = buildDatagram_v2(IGMP_TYPE_LEAVE, 0, multiIP);
+    }
+    if(res > 0)
+    {
+        uint8_t addrExist = 0;
+        list<string>::iterator it;
+        for(it = m_multiGroupAddr_report.begin(); it != m_multiGroupAddr_report.end(); it++)
+        {
+            if(*it == multiIP)
+            {
+                addrExist = 1;
+                break;
+            }
+        }
+        if(addrExist == 0)
+        {
+            WARN("multiGroupAddr:%s does not exist\n", multiIP.c_str());
+            return res;
+        }
+        m_multiGroupAddr_report.erase(it);
     }
     return res;
 }
@@ -124,13 +123,7 @@ int16_t CIGMPproto::buildDatagram_v2(uint8_t type, uint8_t rspTime, string multi
     m_networkLayer->setDstMAC(dst_mac);
     m_networkLayer->setDstIP(multiIP);
 
-    struct igmp_v2
-    {
-        uint8_t type;
-        uint8_t maxRspTime;
-        uint16_t chksum;
-        uint32_t group_ip;
-    }igmpPkt;
+    struct igmp_v2 igmpPkt;
     uint16_t igmpPkt_len = sizeof(igmpPkt);
     igmpPkt.type = type; // v2的报告报文
     igmpPkt.maxRspTime = rspTime; // 最大响应时间
@@ -144,4 +137,32 @@ int16_t CIGMPproto::buildDatagram_v2(uint8_t type, uint8_t rspTime, string multi
     delete igmp_packet;
 
     return res;
+}
+
+uint8_t CIGMPproto::isMultiGroupAddr(string ip)
+{
+    uint8_t addrExist = 0;
+    list<string>::iterator it;
+    for(it = m_multiGroupAddr_query.begin(); it != m_multiGroupAddr_query.end(); it++)
+    {
+        if(*it == ip)
+        {
+            addrExist = 1;
+            break;
+        }
+    }
+    for(it = m_multiGroupAddr_report.begin(); it != m_multiGroupAddr_report.end(); it++)
+    {
+        if(*it == ip)
+        {
+            addrExist = 1;
+            break;
+        }
+    }
+    return addrExist;
+}
+
+list<string> CIGMPproto::getMultiGroupAddrList()
+{
+    return m_multiGroupAddr_report;
 }

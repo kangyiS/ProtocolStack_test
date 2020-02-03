@@ -14,6 +14,7 @@
 #include "Print.h"
 #include "HostBase.h"
 #include "NetProtocolBase.h"
+#include "IGMPproto.h"
 
 using namespace std;
 
@@ -100,7 +101,7 @@ void* CSockRecv::resProtoThread(void* param)
 
 void CSockRecv::responseProto(uint16_t proto, uint8_t* buf, uint16_t len)
 {
-    /*WARN("CSockRecv::responseProto, proto:0x%x\n", proto);
+    /*DEBUG("CSockRecv::responseProto, proto:0x%.4x\n", proto);
     for(uint16_t i = 0; i < len; i++)
     {
         printf("0x%.2x ", *(buf+i));
@@ -109,6 +110,25 @@ void CSockRecv::responseProto(uint16_t proto, uint8_t* buf, uint16_t len)
     if(proto == ARP_PROTO_ID)
     {
         responseARP(buf, len);
+    }
+    else if(proto == IGMP_PROTO_ID)
+    {
+        responseIGMP(buf, len);
+    }
+}
+void CSockRecv::responseIGMP(uint8_t* buf, uint16_t len)
+{
+    list<string> addr = CIGMPproto::instance()->getMultiGroupAddrList();
+    if(addr.size() == 0)
+    {
+        INFO("igmp response: there is no multiGroup address\n");
+        return;
+    }
+    list<string>::iterator it;
+    for(it = addr.begin(); it != addr.end(); it++)
+    {
+        INFO("igmp response: find multiGroup address %s\n", (*it).c_str());
+        CIGMPproto::instance()->joinMultiGroup(*it);
     }
 }
 
@@ -212,7 +232,7 @@ uint8_t CSockRecv::dstIsHostMac(string mac)
 
 uint8_t CSockRecv::dstIsHostIP(string ip)
 {
-    if((ip == m_host_ip)||(ip == "255.255.255.255"))
+    if((ip == m_host_ip)||(ip == "255.255.255.255")||(CIGMPproto::instance()->isMultiGroupAddr(ip)))
     {
         return 1;
     }
@@ -296,6 +316,17 @@ uint8_t CSockRecv::parseData(uint8_t* buf, uint16_t len)
             }
             printf("\n");*/
             pushBufferByPort(port_dst, buf, len);
+        }
+        else if(ipHeader->ip_p == IGMP_PROTO_ID) // igmp
+        {
+            uint8_t signal = 0;
+            struct CIGMPproto::igmp_v2* igmp = (struct CIGMPproto::igmp_v2*)(buf+ethHdrLen+ipHeader->ip_hl*4);
+            if(igmp->type == IGMP_TYPE_QUERY)
+            {
+                signal = 1;
+                INFO("received igmp query, src mac: %s\n", eth_src.c_str());
+            }
+            pushBufferByProto(IGMP_PROTO_ID, buf, len, signal);
         }
     }
     else if(ntohs(ethHeader->ether_type) == ARP_PROTO_ID) //　arp协议

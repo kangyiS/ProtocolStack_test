@@ -54,6 +54,7 @@ private:
     static void* resProtoThread(void* param);
     void responseProto(uint16_t proto, uint8_t* buf, uint16_t len);
     void responseARP(uint8_t* buf, uint16_t len);
+    void responseIGMP(uint8_t* buf, uint16_t len);
     uint8_t listenNIC(std::string nic);
     uint8_t parseData(uint8_t* buf, uint16_t len);
     void pushBufferByPort(uint16_t port, uint8_t* buf, uint16_t len);

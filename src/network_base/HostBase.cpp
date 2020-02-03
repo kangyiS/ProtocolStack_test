@@ -46,9 +46,9 @@ void CHostBase::init(string nic)
         ERROR("start receive thread failed\n");
         return;
     }
-    // 初始化的时候添加arp协议，可以接收arp请求数据包
-    // 还需要添加igmp协议，用来应答igmp请求
+    // 初始化的时候添加arp和igmp应答功能
     CSockRecv::instance()->addProtocol(ARP_PROTO_ID, 4*1024);
+    CSockRecv::instance()->addProtocol(IGMP_PROTO_ID, 4*1024);
 }
 
 uint16_t CHostBase::getHostMTU(string nic)

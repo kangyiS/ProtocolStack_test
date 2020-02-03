@@ -5,22 +5,35 @@
 #include "IPproto.h"
 #include "NetProtocolBase.h"
 
+#define IGMP_TYPE_QUERY 0x11
+#define IGMP_TYPE_JOIN  0x16
+#define IGMP_TYPE_LEAVE 0x17
 class CIGMPproto : public CNetProtocolBase
 {
 public:
-    CIGMPproto(std::string version);
-    ~CIGMPproto();
-    int8_t createSocket();
+    static CIGMPproto* instance();
+    int8_t init(std::string version);
     int16_t joinMultiGroup(std::string multiIP);
     int16_t leaveMultiGroup(std::string multiIP);
-    int8_t connectToHost(std::string nic, uint16_t port);
+    uint8_t isMultiGroupAddr(std::string ip);
+    std::list<std::string> getMultiGroupAddrList();
 private:
-    uint8_t getHostParam();
+    CIGMPproto();
+    ~CIGMPproto();
     int16_t buildDatagram_v2(uint8_t type, uint8_t rspTime, std::string multiIP);
+public:
+    struct igmp_v2
+    {
+        uint8_t type;
+        uint8_t maxRspTime;
+        uint16_t chksum;
+        uint32_t group_ip;
+    };
 private:
     int16_t m_sockfd;
-    uint16_t m_src_port;
     std::string m_version;
     CIPproto* m_networkLayer;
+    std::list<std::string> m_multiGroupAddr_query;
+    std::list<std::string> m_multiGroupAddr_report;
 };
 #endif
