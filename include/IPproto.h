@@ -15,8 +15,6 @@ public:
     std::string getNIC();
     std::string getHostMAC(uint8_t refresh = 0);
     uint16_t getMTU(uint8_t refresh = 0);
-    int16_t sendArpRequest(std::string dst_ip);
-    std::string recvArpResponse();
     void setDstMAC(std::string dst_mac);
     void setDstIP(std::string dst_ip);
     std::string getDstIP();

@@ -5,7 +5,7 @@
 
 using namespace std;
 
-#define TEST 1
+#define TEST 2
 
 CUDPproto mysock;
 string send_msg;

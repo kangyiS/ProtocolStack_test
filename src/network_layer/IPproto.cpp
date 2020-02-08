@@ -68,54 +68,6 @@ uint16_t CIPproto::getMTU(uint8_t refresh)
     return m_dataLinkLayer->getMTU(refresh);
 }
 
-int16_t CIPproto::sendArpRequest(string dst_ip)
-{
-    int16_t sock_arpreq = CSockSend::instance()->createSocket();
-    if(sock_arpreq == -1) 
-    {
-        ERRORNO("create ARP request socket failed\n");
-        return 0;
-    }
-    string src_mac = m_dataLinkLayer->getHostMAC();
-    string dst_mac = "ff:ff:ff:ff:ff:ff";
-    uint32_t l_src_ip = inet_addr(m_src_ip.c_str());
-    uint32_t l_dst_ip = inet_addr(dst_ip.c_str());
-    
-    struct ether_arp ea;//arp包数据结构
-    // arp数据包
-    ea.arp_hrd = htons(ARPHRD_ETHER);//硬件类型  2 bytes
-    ea.arp_pro = htons(ETHERTYPE_IP);//协议类型  2 bytes
-    ea.arp_hln = ETH_ALEN;//MAC地址长度6字节     1 byte
-    ea.arp_pln = 4;//IP地址长度                  1 byte
-    ea.arp_op = htons(ARPOP_REQUEST);//操作码，ARP请求包  2 bytes
-    memcpy(ea.arp_sha, ether_aton(src_mac.c_str()), ETH_ALEN);//源MAC   6 bytes
-    memcpy(ea.arp_spa, &l_src_ip, 4);//源IP     4 bytes
-    memcpy(ea.arp_tha, ether_aton(dst_mac.c_str()), ETH_ALEN);//目的MAC  6 bytes
-    memcpy(ea.arp_tpa, &l_dst_ip, 4); // 目的ip  4 bytes
-    m_dataLinkLayer->setDstMAC(dst_mac);
-    int16_t res = m_dataLinkLayer->sendData(sock_arpreq, &ea, sizeof(ea), 0, ARP_PROTO_ID);
-    return res;
-}
-
-string CIPproto::recvArpResponse()
-{
-    int16_t len = 0;
-    uint8_t* buf_arp = NULL;
-    len = m_dataLinkLayer->receiveData(buf_arp, ARP_PROTO_ID, CSockRecv::BUFF_PROTOCOL, 3*1000);
-    if(len <= 0)
-    {
-        ERROR("receive data failed, error no: %d\n", len);
-        return "";
-    }
-    else
-    {
-        string dst_mac;
-        struct ether_arp* ea = (struct ether_arp*)buf_arp;//arp包数据结构
-        dst_mac = ether_ntoa((struct ether_addr*)ea->arp_sha);
-        return dst_mac;
-    }
-}
-
 void CIPproto::setDstMAC(string dst_mac)
 {
     m_dataLinkLayer->setDstMAC(dst_mac);
