@@ -5,6 +5,7 @@
 #include "SockSend.h"
 #include "Print.h"
 #include "UDPproto.h"
+#include "ARPproto.h"
 
 using namespace std;
 
@@ -55,13 +56,15 @@ string CUDPproto::getNIC()
 
 int8_t CUDPproto::connectToRemote(string dst_ip, uint16_t dst_port)
 {
-    int16_t res = m_networkLayer->sendArpRequest(dst_ip);
+    int16_t res = CARPproto::instance()->sendData(ARP_TYPE_REQUEST, dst_ip);
+    //int16_t res = m_networkLayer->sendArpRequest(dst_ip);
     if(res == -1)
     {
         WARN("send arp request failed\n");
         return 0;
     }
-    string dst_mac = m_networkLayer->recvArpResponse();
+    string dst_mac = CARPproto::instance()->recvResponse();
+    //string dst_mac = m_networkLayer->recvArpResponse();
     if(dst_mac == "")
     {
         WARN("receive arp response failed\n");

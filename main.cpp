@@ -1,17 +1,19 @@
 #include "UDPproto.h"
 #include "IGMPproto.h"
+#include "ARPproto.h"
 #include "HostBase.h"
-CUDPproto mysock;
 
 using namespace std;
 
-#define TEST 3
+#define TEST 1
+
+CUDPproto mysock;
 string send_msg;
 uint16_t dataLen = 100;
 
 const string g_host_nic = "wlx00e02c3112e7";
 const uint16_t g_host_port = 1234;
-const string g_dst_ip = "192.168.3.21";
+const string g_dst_ip = "192.168.3.20";
 const uint16_t g_dst_port = 1234;
 
 int main()
@@ -21,6 +23,8 @@ int main()
         send_msg.append("a");
     }
     CHostBase::instance()->init(g_host_nic);
+    CARPproto::instance()->init();
+    CIGMPproto::instance()->init("v2");
 #if TEST == 1 //udp send
     mysock.connectToHost(g_host_port);
     mysock.connectToRemote(g_dst_ip, g_dst_port);
@@ -41,7 +45,6 @@ int main()
     }
     mysock.closePort();
 #elif TEST == 3 //igmp v2 join and response
-    CIGMPproto::instance()->init("v2");
     CIGMPproto::instance()->joinMultiGroup("224.132.1.1");
     CIGMPproto::instance()->joinMultiGroup("224.132.1.2");
     CIGMPproto::instance()->joinMultiGroup("224.132.1.3");

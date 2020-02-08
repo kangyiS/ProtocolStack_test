@@ -15,6 +15,7 @@
 #include "HostBase.h"
 #include "NetProtocolBase.h"
 #include "IGMPproto.h"
+#include "ARPproto.h"
 
 using namespace std;
 
@@ -141,23 +142,11 @@ void CSockRecv::responseARP(uint8_t* buf, uint16_t len)
         ERROR("arp request packet format error, refuse to response\n");
         return;
     }
-    uint8_t dst_mac[6] = {0};
-    uint8_t dst_ip[4] = {0};
-    uint32_t src_ip = 0;
-    memcpy(dst_mac, arp->arp_sha, 6);
-    memcpy(dst_ip, arp->arp_spa, 4);
-    src_ip = inet_addr(m_host_ip.c_str());
+    string dst_ip = inet_ntoa(*(struct in_addr*)(arp->arp_spa));
+    string dst_mac = ether_ntoa((struct ether_addr*)(arp->arp_sha));
     
-    memcpy(ether->ether_dhost, dst_mac, 6);
-    memcpy(ether->ether_shost, ether_aton(m_host_mac.c_str()), 6);
-    arp->arp_op = htons(ARPOP_REPLY);
-    memcpy(arp->arp_sha, ether_aton(m_host_mac.c_str()), ETH_ALEN);//源MAC   6 bytes
-    memcpy(arp->arp_spa, &src_ip, 4);//源IP     4 bytes
-    memcpy(arp->arp_tha, dst_mac, ETH_ALEN);//目的MAC  6 bytes
-    memcpy(arp->arp_tpa, dst_ip, 4); // 目的ip  4 bytes
-
-    CSockSend::instance()->sendData(m_sockfd, buf, len, 0);
-    INFO("send arp response packet to dst_mac: %s\n", ether_ntoa((struct ether_addr*)dst_mac));
+    CARPproto::instance()->sendData(ARP_TYPE_RESPONSE, dst_ip, dst_mac);
+    INFO("send arp response packet to dst_ip: %s, dst_mac: %s\n", dst_ip.c_str(), dst_mac.c_str());
 }
 
 void* CSockRecv::recvThread(void* param)
